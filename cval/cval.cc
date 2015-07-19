@@ -1,43 +1,60 @@
+/*
+  Copyright 2015, Darren Smith
 
+  This file is part of cval, a Unix program for displaying the limits and hex
+  & binary values for C/C++ primitive types.
+
+  cval is free software: you can redistribute it and/or modify it under the
+  terms of the GNU General Public License as published by the Free Software
+  Foundation, either version 3 of the License, or (at your option) any later
+  version.
+
+  cval is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with cval.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+
+#include <bitset>
+#include <cstring>
 #include <iomanip>
 #include <iostream>
+#include <limits>
+#include <list>
 #include <map>
 #include <sstream>
-#include <list>
-#include <bitset>
-#include <limits>
-#include <cstring>
 #include <stdexcept>
 
 #include <stdlib.h>
 
-
 // helper macros to support string concatenation
 #define CVAL_CONCAT2( a, b ) a##b
-#define CVAL_CONCAT( a, b ) CVAL_CONCAT2( a, b )
+#define CVAL_CONCAT( a, b )  CVAL_CONCAT2( a, b )
 
-/* Template function for getting the name of a type. This is specialised later
- * to provide a set of functions that converts a type to its string, for
+/* Template function for converting a type to its name. This is specialised
+ * later to provide a set of functions that converts a type to its string, for
  * example: int --> "int"
  */
 template <typename T> const char* name_of_type();
 
-/* Get hex representation of a value */
+/* Genereate hex representation of a value */
 template<typename T>
 void to_hex(T _v , std::ostream& s)
 {
   union
   {
-      T value;
-      unsigned char bytes[sizeof(T)];
+    T value;
+    unsigned char bytes[sizeof(T)];
   };
   memset(&bytes, 0, sizeof(T));
   value = _v;
 
-  s << std::setfill('0');
-  s << std::hex;
-  s << std::uppercase;
-  s << std::right;
+  s << std::setfill('0') << std::hex
+    << std::uppercase    << std::right;
 
 #if BYTE_ORDER == BIG_ENDIAN
   for (int i = 0; i < sizeof(T); i++) {
@@ -49,8 +66,8 @@ void to_hex(T _v , std::ostream& s)
 }
 
 /*
- * Get binary representation of a value.  We use std::bitset to generate
- * the actual binary for each byte.
+ * Generate binary representation of a value.  Uses std::bitset to generate the
+ * actual binary for each byte.
  */
 template <typename T>
 void to_bin(T _v, std::ostream& os)
@@ -58,8 +75,8 @@ void to_bin(T _v, std::ostream& os)
   std::bitset< std::numeric_limits<unsigned char>::digits > bs;
   union
   {
-      T value;
-      unsigned char bytes[sizeof(T)];
+    T value;
+    unsigned char bytes[sizeof(T)];
   };
   memset(&bytes, 0, sizeof(T));
   value = _v;
@@ -82,25 +99,25 @@ void to_bin(T _v, std::ostream& os)
 template <typename T>
 struct typeutil
 {
-    typedef T io_type;
+  typedef T io_type;
 
-    static T from_string(const char* s,
-                         std::ios_base& (*base)(std::ios_base&))
+  static T from_string(const char* s,
+                       std::ios_base& (*base)(std::ios_base&))
+  {
+    T retval = T();
+
+    std::istringstream iss(s);
+
+    if ((iss >> base >> retval).fail())
     {
-      T retval = T();
-
-      std::istringstream iss(s);
-
-      if ((iss >> base >> retval).fail())
-      {
-        std::ostringstream oss;
-        oss << "failed to convert " << s << " to "
-            << ::name_of_type<T>();
-        throw std::ios_base::failure(oss.str());
-      }
-
-      return retval;
+      std::ostringstream oss;
+      oss << "failed to convert " << s << " to "
+          << ::name_of_type<T>();
+      throw std::ios_base::failure(oss.str());
     }
+
+    return retval;
+  }
 };
 
 /* ===== Specialisation for char types ===== */
@@ -140,8 +157,8 @@ template <>
 struct typeutil<unsigned char>
 {
   typedef unsigned long io_type;
-    static unsigned char from_string(const char* s,
-                                     std::ios_base& (*base)(std::ios_base&));
+  static unsigned char from_string(const char* s,
+                                   std::ios_base& (*base)(std::ios_base&));
 };
 
 template <>
@@ -178,16 +195,25 @@ void pr_raw(T v, std::ostream& os, bool pad)
   }
   os << std::dec << std::right << std::setfill(' ') << o;
 }
-template<> void pr_raw(float v, std::ostream& os, bool pad) { pr_float(v, os, 20, 5, pad); }
-template<> void pr_raw(double v, std::ostream& os, bool pad){ pr_float(v, os, 20, 5, pad); }
-template<> void pr_raw(long double v, std::ostream& os, bool pad){ pr_float(v, os, 25, 6, pad); }
+template<> void pr_raw(float v, std::ostream& os, bool pad)
+{
+  pr_float(v, os, 20, 5, pad);
+}
+template<> void pr_raw(double v, std::ostream& os, bool pad)
+{
+  pr_float(v, os, 20, 5, pad);
+}
+template<> void pr_raw(long double v, std::ostream& os, bool pad)
+{
+  pr_float(v, os, 25, 6, pad);
+}
 
 
 /* For a type T, and a set of values starting at argv[argoffset],
  * display a summary of the type and the hex and binary
  * representations of the set of values. */
 template <typename T>
-void dump(int argc, const char** argv, int argoffset, std::ostream& os)
+void dumpimpl(int argc, const char** argv, int argoffset, std::ostream& os)
 {
   // summary line
   os << name_of_type<T>()
@@ -221,26 +247,25 @@ std::list<std::string> supported_types;
 template< typename T >
 struct TypeDecoder
 {
-
   TypeDecoder()
   {
-    // register
+    // register with global containers
     dump_funs[ ::name_of_type< T >() ] = TypeDecoder<T>::dump;
     supported_types.push_back( ::name_of_type< T >() ) ;
   }
 
   static void dump(int argc, const char** argv, int argoffset, std::ostream& os)
   {
-    ::dump<T>(argc, argv, argoffset, os);
+    ::dumpimpl<T>(argc, argv, argoffset, os);
   }
 };
 
 
 /* Note a little trick here.
  */
-#define GENERATE_CONVERTER( T )                                 \
-  template <> const char* name_of_type< T >() { return #T; }    \
-  TypeDecoder< T > CVAL_CONCAT( __decoder_ , __LINE__ );
+#define GENERATE_CONVERTER( T )                                     \
+  template <> const char* name_of_type< T >() { return #T; }        \
+  TypeDecoder< T > CVAL_CONCAT( __decode_instance_ , __LINE__ );
 
 // Generate decoders for the usual family of C/C++ types.  Not that types like
 // "long int" are not here; they are represented as just "long".
@@ -291,9 +316,9 @@ void usage()
     std::cout << "\t" << *i << "\n";
 
   std::cout << std::endl << "Compiled on ILP:" << std::endl
-            << "\tint     " << sizeof(int)   << std::endl
-            << "\tlong    " << sizeof(long)  << std::endl
-            << "\tpointer " << sizeof(void*) << std::endl;
+            << "\tint     " << sizeof(int)     << std::endl
+            << "\tlong    " << sizeof(long)    << std::endl
+            << "\tpointer " << sizeof(void*)   << std::endl;
   ::exit(0);
 }
 
