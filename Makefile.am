@@ -1,2 +1,2 @@
 AUTOMAKE_OPTIONS = foreign
-SUBDIRS = cval cerror
+SUBDIRS = cval cerror cdatetime

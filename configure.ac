@@ -11,6 +11,7 @@ AM_INIT_AUTOMAKE
 
 AC_CONFIG_SRCDIR([cval/cval.cc])
 AC_CONFIG_SRCDIR([cerror/cerror.c])
+AC_CONFIG_SRCDIR([cdatetime/cdatetime.c])
 
 AC_CONFIG_HEADERS([config.h])
 
@@ -81,6 +82,7 @@ CFLAGS="$my_save_cflags"
 
 AC_CONFIG_FILES([Makefile
                  cval/Makefile
+                 cdatetime/Makefile
                  cerror/Makefile])
 
 # Trigger the generation of our makefiles
