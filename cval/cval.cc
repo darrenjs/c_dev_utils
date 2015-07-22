@@ -1,23 +1,21 @@
 /*
-  Copyright 2015, Darren Smith
+    Copyright 2015, Darren Smith
 
-  This file is part of cval, a Unix program for displaying the limits and hex
-  & binary values for C/C++ primitive types.
+    This file is part of c_dev_utils.
 
-  cval is free software: you can redistribute it and/or modify it under the
-  terms of the GNU General Public License as published by the Free Software
-  Foundation, either version 3 of the License, or (at your option) any later
-  version.
+    c_dev_utils is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
 
-  cval is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+    c_dev_utils is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
-  You should have received a copy of the GNU General Public License
-  along with cval.  If not, see <http://www.gnu.org/licenses/>.
+    You should have received a copy of the GNU General Public License
+    along with c_dev_utils.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 
 #include <bitset>
 #include <cstring>
@@ -94,47 +92,28 @@ void to_bin(T _v, std::ostream& os)
 }
 
 /*
- * Utility methods for a primitive type.
+ * Utility method to convert from a string to a value of type T
  */
 template <typename T>
-struct typeutil
+struct FromString
 {
   typedef T io_type;
 
-  static T from_string(const char* s,
-                       std::ios_base& (*base)(std::ios_base&))
-  {
-    T retval = T();
 
-    std::istringstream iss(s);
-
-    if ((iss >> base >> retval).fail())
-    {
-      std::ostringstream oss;
-      oss << "failed to convert " << s << " to "
-          << ::name_of_type<T>();
-      throw std::ios_base::failure(oss.str());
-    }
-
-    return retval;
-  }
-};
-
-/* ===== Specialisation for char types ===== */
 
 /*
- * Generic method to use when the conversion from a string to a type
- * needs to go via an intermediate ordinal type.
+ * Generic method to use when the conversion from a string to a type needs to go
+ * via an intermediate ordinal type.
  */
 template <typename S, typename I>
-S convert_via_int(const char* s,
+static S convert_via(const char* s,
                   std::ios_base& (*base)(std::ios_base&))
 {
   std::istringstream iss(s);
 
-  I intermediate;
+  I temp = I();
 
-  if ((iss >> base >> intermediate).fail())
+  if ((iss >> base >> temp).fail())
   {
     std::ostringstream oss;
     oss << "failed to convert \"" << s << "\" to "
@@ -142,51 +121,108 @@ S convert_via_int(const char* s,
     throw std::ios_base::failure(oss.str());
   }
 
-  return intermediate;
+  return temp;
+}
+
+
+  // default conversion operation - this is specialised for particular types
+  static T convert(const char* s,
+                   std::ios_base& (*base)(std::ios_base&))
+  {
+    return convert_via<T,T>(s, base);
+  }
+
+
+
+  // // default conversion operation - this is specialised for particular types
+  // static T convert(const char* s,
+  //                      std::ios_base& (*base)(std::ios_base&))
+  // {
+  //   std::istringstream iss(s);
+
+  //   T temp = T();
+
+  //   if ((iss >> base >> temp).fail())
+  //   {
+  //     std::ostringstream oss;
+  //     oss << "failed to convert " << s << " to "
+  //         << ::name_of_type<T>();
+  //     throw std::ios_base::failure(oss.str());
+  //   }
+
+  //   return temp;
+  // }
+
+};
+
+/* ===== Specialisation for char types ===== */
+
+/*
+ * Generic method to use when the conversion from a string to a type needs to go
+ * via an intermediate ordinal type.
+ */
+template <typename S, typename I>
+S convert_via_int(const char* s,
+                  std::ios_base& (*base)(std::ios_base&))
+{
+  std::istringstream iss(s);
+
+  I temp = I();
+
+  if ((iss >> base >> temp).fail())
+  {
+    std::ostringstream oss;
+    oss << "failed to convert \"" << s << "\" to "
+        << ::name_of_type<S>();
+    throw std::ios_base::failure(oss.str());
+  }
+
+  return temp;
 }
 
 template <>
-struct typeutil<char>
+struct FromString<char>
 {
   typedef long io_type;
-  static char from_string(const char* s,
+  static char convert(const char* s,
                           std::ios_base& (*base)(std::ios_base&));
 };
 
 template <>
-struct typeutil<unsigned char>
+struct FromString<unsigned char>
 {
   typedef unsigned long io_type;
-  static unsigned char from_string(const char* s,
+  static unsigned char convert(const char* s,
                                    std::ios_base& (*base)(std::ios_base&));
 };
 
 template <>
-struct typeutil<signed char>
+struct FromString<signed char>
 {
   typedef signed long io_type;
-  static signed char from_string(const char* s,
+  static signed char convert(const char* s,
                                  std::ios_base& (*base)(std::ios_base&));
 };
 
 /* Formatted output of a floating point type value */
 template <typename T>
-void pr_float(T v, std::ostream& os, int p, int e, bool pad)
+void pr_float(T v, std::ostream& os, int prec, int e, bool pad)
 {
   os << std::dec;
-  if (pad) os << std::setw(2+p+2+e);
+  if (pad) os << std::setw(2+prec+2+e);
   os << std::right
      << std::setfill(' ')
-     << std::setprecision(p)
+     << std::setprecision(prec)
      << v;
 }
 
+// TODO: what is E??
 /* Formatted output of a value.  This function is specialised (below)
  * for floating point types. */
 template <typename T>
 void pr_raw(T v, std::ostream& os, bool pad)
 {
-  typename typeutil<T>::io_type o = v;
+  typename FromString<T>::io_type o = v;
 
   if (pad)
   {
@@ -195,6 +231,8 @@ void pr_raw(T v, std::ostream& os, bool pad)
   }
   os << std::dec << std::right << std::setfill(' ') << o;
 }
+
+// template specialisations for real types
 template<> void pr_raw(float v, std::ostream& os, bool pad)
 {
   pr_float(v, os, 20, 5, pad);
@@ -213,7 +251,7 @@ template<> void pr_raw(long double v, std::ostream& os, bool pad)
  * display a summary of the type and the hex and binary
  * representations of the set of values. */
 template <typename T>
-void dumpimpl(int argc, const char** argv, int argoffset, std::ostream& os)
+void dump_impl(int argc, const char** argv, int argoffset, std::ostream& os)
 {
   // summary line
   os << name_of_type<T>()
@@ -229,7 +267,7 @@ void dumpimpl(int argc, const char** argv, int argoffset, std::ostream& os)
   // display the bin & hex representations of the values
   for (int i = argoffset; i < argc; ++i)
   {
-    T f = typeutil<T>::from_string(argv[i], std::dec);
+    T f = FromString<T>::convert(argv[i], std::dec);
     pr_raw<T>(f, os, true);
     os << " |";
     ::to_hex<T>(f, os);
@@ -241,34 +279,43 @@ void dumpimpl(int argc, const char** argv, int argoffset, std::ostream& os)
 
 
 typedef void (*dump_funptr)(int, const char**, int, std::ostream&);
+
+// global functions that list the supported types and their hanlder functions.
 std::map<std::string, dump_funptr> dump_funs;
 std::list<std::string> supported_types;
 
+
 template< typename T >
-struct TypeDecoder
+struct TypeHandler
 {
-  TypeDecoder()
+  TypeHandler()
   {
     // register with global containers
-    dump_funs[ ::name_of_type< T >() ] = TypeDecoder<T>::dump;
+    dump_funs[ ::name_of_type< T >() ] = TypeHandler<T>::dump;
     supported_types.push_back( ::name_of_type< T >() ) ;
   }
 
-  static void dump(int argc, const char** argv, int argoffset, std::ostream& os)
+  static void dump(int argc, const char** argv,
+                   int argoffset, std::ostream& os)
   {
-    ::dumpimpl<T>(argc, argv, argoffset, os);
+    ::dump_impl<T>(argc, argv, argoffset, os);
   }
 };
 
 
-/* Note a little trick here.
+/* Macro to generate a type handler. There is a little trick in here. A type
+ * handler is created by defining an instance of TypeHandler<T>. Each such
+ * instance needs a unique variable name, and these names are generated by
+ * incorparating the line number, from where the macro is invoked, into the
+ * variable name.
  */
 #define GENERATE_CONVERTER( T )                                     \
   template <> const char* name_of_type< T >() { return #T; }        \
-  TypeDecoder< T > CVAL_CONCAT( __decode_instance_ , __LINE__ );
+  TypeHandler< T > CVAL_CONCAT( __decode_instance_ , __LINE__ );
 
-// Generate decoders for the usual family of C/C++ types.  Not that types like
-// "long int" are not here; they are represented as just "long".
+// Invoke generator the usual family of C/C++ types.  Not that types like "long
+// int" are not here; they are represented as just "long". This is the only
+// place in the program where the types are listed.
 GENERATE_CONVERTER( bool );
 GENERATE_CONVERTER( double );
 GENERATE_CONVERTER( long double );
@@ -285,29 +332,30 @@ GENERATE_CONVERTER( unsigned long long );
 GENERATE_CONVERTER( short );
 GENERATE_CONVERTER( unsigned short );
 
-/* Next follows the definition of the from_string methods for the char variants
- * of the typeutil class. These need to come after the generation of convertors,
- * so that older version of GCC (eg 3.5) don't complain about the template
- * already being initialised.
+/* The definition of the convert methods for the char variants of the
+ * FromString class. These need to come after the generation of convertors, so
+ * that older version of GCC (eg 3.5) don't complain about the template already
+ * being initialised.
  */
-char typeutil<char>::from_string(const char* s,
+char FromString<char>::convert(const char* s,
                                  std::ios_base& (*base)(std::ios_base&))
 {
   return ::convert_via_int<char, io_type>(s, base);
 }
-unsigned char typeutil<unsigned char>::from_string(const char* s,
+unsigned char FromString<unsigned char>::convert(const char* s,
                                                    std::ios_base& (*base)(std::ios_base&))
 {
   return ::convert_via_int<unsigned char, io_type>(s, base);
 }
-signed char typeutil<signed char>::from_string(const char* s,
-                                               std::ios_base& (*base)(std::ios_base&))
+signed char FromString<signed char>::convert(const char* s,
+                                             std::ios_base& (*base)(std::ios_base&))
 {
   return ::convert_via_int<signed char, io_type>(s, base);
 }
 
 void usage()
 {
+  // TODO: use _LP_ here
   std::cout << "cval\n";
 
   std::cout << "Supported types:" << std::endl;
