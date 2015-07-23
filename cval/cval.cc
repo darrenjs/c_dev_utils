@@ -101,28 +101,31 @@ struct FromString
 
 
 
-/*
- * Generic method to use when the conversion from a string to a type needs to go
- * via an intermediate ordinal type.
- */
-template <typename S, typename I>
-static S convert_via(const char* s,
-                  std::ios_base& (*base)(std::ios_base&))
-{
-  std::istringstream iss(s);
-
-  I temp = I();
-
-  if ((iss >> base >> temp).fail())
+  /*
+   * Generic method to use when the conversion from a string to a type needs to go
+   * via an intermediate ordinal type.
+   */
+  template <typename S, typename I>
+  static S convert_via(const char* s,
+                       std::ios_base& (*base)(std::ios_base&))
   {
-    std::ostringstream oss;
-    oss << "failed to convert \"" << s << "\" to "
-        << ::name_of_type<S>();
-    throw std::ios_base::failure(oss.str());
-  }
+    std::istringstream iss(s);
 
-  return temp;
-}
+    // the intiial string conversion, using streams, goes via thhis temp
+    // varialbe.
+    I temp = I();
+
+    if ((iss >> base >> temp).fail())
+    {
+      std::ostringstream oss;
+      oss << "failed to convert \"" << s << "\" to "
+          << ::name_of_type<S>();
+      throw std::ios_base::failure(oss.str());
+    }
+
+    // final part of conversion
+    return (S) temp;
+  }
 
 
   // default conversion operation - this is specialised for particular types
@@ -157,28 +160,28 @@ static S convert_via(const char* s,
 
 /* ===== Specialisation for char types ===== */
 
-/*
- * Generic method to use when the conversion from a string to a type needs to go
- * via an intermediate ordinal type.
- */
-template <typename S, typename I>
-S convert_via_int(const char* s,
-                  std::ios_base& (*base)(std::ios_base&))
-{
-  std::istringstream iss(s);
+// /*
+//  * Generic method to use when the conversion from a string to a type needs to go
+//  * via an intermediate ordinal type.
+//  */
+// template <typename S, typename I>
+// S convert_via_int(const char* s,
+//                   std::ios_base& (*base)(std::ios_base&))
+// {
+//   std::istringstream iss(s);
 
-  I temp = I();
+//   I temp = I();
 
-  if ((iss >> base >> temp).fail())
-  {
-    std::ostringstream oss;
-    oss << "failed to convert \"" << s << "\" to "
-        << ::name_of_type<S>();
-    throw std::ios_base::failure(oss.str());
-  }
+//   if ((iss >> base >> temp).fail())
+//   {
+//     std::ostringstream oss;
+//     oss << "failed to convert \"" << s << "\" to "
+//         << ::name_of_type<S>();
+//     throw std::ios_base::failure(oss.str());
+//   }
 
-  return temp;
-}
+//   return temp;
+// }
 
 template <>
 struct FromString<char>
@@ -340,17 +343,17 @@ GENERATE_CONVERTER( unsigned short );
 char FromString<char>::convert(const char* s,
                                  std::ios_base& (*base)(std::ios_base&))
 {
-  return ::convert_via_int<char, io_type>(s, base);
+  return FromString<char>::convert_via<char, io_type>(s, base);
 }
 unsigned char FromString<unsigned char>::convert(const char* s,
                                                    std::ios_base& (*base)(std::ios_base&))
 {
-  return ::convert_via_int<unsigned char, io_type>(s, base);
+  return convert_viat<unsigned char, io_type>(s, base);
 }
 signed char FromString<signed char>::convert(const char* s,
                                              std::ios_base& (*base)(std::ios_base&))
 {
-  return ::convert_via_int<signed char, io_type>(s, base);
+  return convert_via<signed char, io_type>(s, base);
 }
 
 void usage()
