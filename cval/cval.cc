@@ -121,7 +121,7 @@ static T convert_via(const char* s,
 }
 
 /*
- * Utility method to convert from a string to a value of type T
+ * Utility to convert from a string to a value of type T
  */
 template <typename T>
 struct FromString
@@ -328,6 +328,7 @@ signed char FromString<signed char>::convert(const char* s,
 void version()
 {
   std::cout << "cval " CVAL_VERSION " (";
+
 #if defined(__LP64__) || defined(_LP64)
   std::cout << "64";
 #else
@@ -339,20 +340,25 @@ void version()
 
 void usage()
 {
-  std::cout << "Usage: cval [-hv] TYPE VALUE...\n\n";
+  std::cout << "cval - display system representation for C/C++ primitive types\n";
+
+  std::cout << "\nUsage: cval [-hv] TYPE VALUE...\n\n";
 
   std::cout << "Supported types:" << std::endl;
   for (std::list<std::string>::iterator i=supported_types.begin();
        i != supported_types.end(); ++i)
     std::cout << "\t" << *i << "\n";
 
-  std::cout << std::endl << "Compiled on ILP:" << std::endl
-            << "\tint     " << sizeof(int)     << std::endl
-            << "\tlong    " << sizeof(long)    << std::endl
-            << "\tpointer " << sizeof(void*)   << std::endl;
+  std::cout << std::endl << "Compiled for ";
+#if defined(__LP64__) || defined(_LP64)
+  std::cout << "64";
+#else
+  std::cout << "32";
+#endif
+  std::cout << " bit mode.\n";
+
   ::exit(0);
 }
-
 
 int __main(int argc, const char** argv)
 {
