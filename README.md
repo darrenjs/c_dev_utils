@@ -2,16 +2,13 @@ C Dev Utils
 ===========
 
 c_dev_utils is a collection of simple utility programs for displaying
-information regarding the kernel and C\C++ programming environment on GNU\Linux
-bases systems.
+information regarding the C\C++ programming environment on GNU\Linux systems.
 
 cval
 ----
 
-Given a C\C++ type, cval will display its limits (as defined by C++), and given
-values, will show their hex and binary representation. This is typically of
-interest to developers who need understand the machine representation of the
-primitive types.
+Display numerical limits associated with the C\C++ primitive types (as defined
+by C++), and the hex and binary representation for specified values.
 
     $ cval short 256 257 258
     short, sizeof 2, non-sign-bits 15, digits10 4, min -32768, max 32767
@@ -26,8 +23,8 @@ primitive types.
 cerror
 ------
 
-cerror lists many of the standard error codes defined on a Linux system, eg,
-values like EWOULDBLOCK, and their assoicated system error strings.
+Lists many of the standard error codes defined on a Linux system, eg, values
+like EWOULDBLOCK, and their assoicated system error strings.
 
 
     $ cerror | grep TIME
@@ -38,9 +35,9 @@ values like EWOULDBLOCK, and their assoicated system error strings.
 cdatetime
 ---------
 
-Converts user supplieds time_t values (describing epoch time values) into their
-corresponding calender value. Also displays the epoch times for the current
-moment and start of day.
+Convert time_t values (describing epoch time values) into their corresponding
+calender value. Also displays the epoch times for the current moment and start
+of day.
 
 
     $ cdatetime 1437316800
