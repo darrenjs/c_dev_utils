@@ -16,7 +16,6 @@ by C++), and the hex and binary representation for specified values.
     257 | 01 01 | 00000001 00000001
     258 | 01 02 | 00000001 00000010
 
-
     $ cval64 unsigned int
     unsigned int, sizeof 4, non-sign-bits 32, digits10 9, min 0, max 4294967295
 
