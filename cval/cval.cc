@@ -27,6 +27,7 @@
 #include <sstream>
 #include <stdexcept>
 
+#include <stdio.h>
 #include <stdlib.h>
 
 #define CVAL_VERSION "1.0"
@@ -137,6 +138,35 @@ struct FromString
     return ::convert_via<T,T>(s, base);
   }
 
+};
+
+/* Specialisation for floating point types */
+
+template <>
+struct FromString<float>
+{
+  typedef float dest_type;
+
+  static dest_type convert(const char* s,
+                           std::ios_base& (*base)(std::ios_base&));
+};
+
+template <>
+struct FromString<double>
+{
+  typedef double dest_type;
+
+  static dest_type convert(const char* s,
+                           std::ios_base& (*base)(std::ios_base&));
+};
+
+template <>
+struct FromString<long double>
+{
+  typedef long double dest_type;
+
+  static dest_type convert(const char* s,
+                           std::ios_base& (*base)(std::ios_base&));
 };
 
 /* Specialisation for char types  */
@@ -303,6 +333,29 @@ GENERATE_CONVERTER( short );
 GENERATE_CONVERTER( unsigned short );
 
 
+bool is_keyword(const char* s)
+{
+  for (std::list<std::string>::iterator i = supported_types.begin();
+       i != supported_types.end(); ++i)
+  {
+    const char* k = i->c_str();
+    const char* p = ::strstr(k, s); // find 's' in 'k'
+
+    if (p)
+    {
+      const char * e = p + strlen(s);
+
+      // matched substr must have word boundary on left side and right side
+      if ( (p == k || (*(p-1)==' '))
+           &&
+           (*e == '\0' || *e==' ')
+        )
+        return true;
+    }
+  }
+  return false;
+}
+
 /* The definition of the convert methods for the char variants of the
  * FromString class. These need to come after the generation of convertors, so
  * that older version of GCC (eg 3.5) don't complain about the template already
@@ -322,6 +375,38 @@ signed char FromString<signed char>::convert(const char* s,
                                              std::ios_base& (*base)(std::ios_base&))
 {
   return ::convert_via<dest_type, io_type>(s, base);
+}
+
+
+/* sscanf conversion strings for floats
+
+        f  - float
+        lf - double
+        Lf - long doulbe
+*/
+
+float FromString<float>::convert(const char* s,
+                               std::ios_base& (*base)(std::ios_base&))
+{
+  dest_type retval;
+  sscanf(s, "%f", &retval);
+  return retval;
+}
+
+double FromString<double>::convert(const char* s,
+                               std::ios_base& (*base)(std::ios_base&))
+{
+  dest_type retval;
+  sscanf(s, "%lf", &retval);
+  return retval;
+}
+
+long double FromString<long double>::convert(const char* s,
+                               std::ios_base& (*base)(std::ios_base&))
+{
+  dest_type retval;
+  sscanf(s, "%Lf", &retval);
+  return retval;
 }
 
 
@@ -369,7 +454,7 @@ int __main(int argc, const char** argv)
     if ( (strcmp(argv[i],"-h")==0) || (strcmp(argv[i],"--help")==0) ) usage();
     if ( (strcmp(argv[i],"-v")==0) || (strcmp(argv[i],"--version")==0) ) version();
 
-    if (argv[i][0] >= 'a' && argv[i][0] <= 'z')
+    if (is_keyword( argv[i] ))
     {
       usertype += argv[i];
       usertype.resize(usertype.length()+1, ' ');
