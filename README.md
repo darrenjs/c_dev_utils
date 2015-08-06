@@ -17,8 +17,13 @@ by C++), and the hex and binary representation for specified values.
     258 | 01 02 | 00000001 00000010
 
 
-    $  cval64  unsigned int
+    $ cval64 unsigned int
     unsigned int, sizeof 4, non-sign-bits 32, digits10 9, min 0, max 4294967295
+
+    $ cval float inf
+    float, sizeof 4, non-sign-bits 24, digits10 6, min 1.175494350822287508e-38, max 3.4028234663852885981e+38
+                              inf | 7F 80 00 00 | 01111111 10000000 00000000 00000000
+
 
 cerror
 ------
