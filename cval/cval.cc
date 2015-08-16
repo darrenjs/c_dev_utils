@@ -26,6 +26,7 @@
 #include <map>
 #include <sstream>
 #include <stdexcept>
+#include <cfloat> // for constants like DBL_MAX
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -243,6 +244,17 @@ template<> void pr_raw(long double v, std::ostream& os, bool pad)
 }
 
 
+/* Obtain lowest value */
+template <typename T>
+T cval_low()
+{
+  return std::numeric_limits<T>::min();
+}
+template <> float  cval_low() { return -FLT_MAX; }
+template <> double cval_low() { return -DBL_MAX; }
+template <> long double cval_low() { return -LDBL_MAX; }
+
+
 /* For a type T, and a set of values starting at argv[argoffset],
  * display a summary of the type and the hex and binary
  * representations of the set of values. */
@@ -254,10 +266,11 @@ void dump_impl(int argc, const char** argv, int argoffset, std::ostream& os)
      << ", sizeof " << sizeof(T)
      << ", non-sign-bits " << std::numeric_limits<T>::digits
      << ", digits10 " << std::numeric_limits<T>::digits10
-     << ", min ";
-  pr_raw<T>(std::numeric_limits<T>::min(), os, false);
+     << ", low ";
+  pr_raw<T>( cval_low<T>(), os, false);
   os << ", max ";
   pr_raw<T>(std::numeric_limits<T>::max(), os, false);
+
   os << std::endl;
 
   // display the bin & hex representations of the values
@@ -472,6 +485,8 @@ int __main(int argc, const char** argv)
 
     fptr(argc, argv, i, std::cout);
   }
+  else
+    throw std::runtime_error("please specify a type");
 
   return 0;
 }
