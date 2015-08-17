@@ -2,7 +2,7 @@
 
 #===== Initialisation =====
 
-AC_PREREQ([2.69])
+AC_PREREQ([2.59])
 AC_INIT([c_dev_utils], [1.0], [cval@darrenjs.net])
 
 AC_CANONICAL_SYSTEM
@@ -26,9 +26,6 @@ AC_PROG_INSTALL
 #===== Checks for header files =====
 AC_CHECK_HEADERS([stdlib.h string.h])
 
-# Checks for typedefs, structures, and compiler characteristics.
-AC_CHECK_HEADER_STDBOOL
-
 # Checks for library functions.
 AC_CHECK_FUNCS([memset exit])
 
@@ -41,14 +38,14 @@ CFLAGS=-static
 AC_MSG_CHECKING([whether can build using -static])
 AC_LINK_IFELSE([AC_LANG_PROGRAM([])],
     [AC_MSG_RESULT([yes])]
-    [AM_STATIC=-static],
+    [XX_STATIC=-static],
     [AC_MSG_RESULT([no])]
 )
 AM_CONDITIONAL([BUILDSTATIC], [test x$TEST64 = xtrue])
 CFLAGS="$my_save_cflags"
 
-# Allow the variable AM_STATIC to be using the Makefile.am
-AC_SUBST([AM_STATIC])
+# Allow the variable XX_STATIC to be using the Makefile.am
+AC_SUBST([XX_STATIC])
 
 
 # Check we can compile & link 64 bit

@@ -4,7 +4,7 @@
 # suffixes.
 
 bin_PROGRAMS = cval
-cval_LDFLAGS= $(AM_STATIC)
+cval_LDFLAGS= $(XX_STATIC)
 cval_SOURCES = cval.cc
 
 
@@ -17,9 +17,9 @@ bin_PROGRAMS += cval64
 endif
 
 cval32_CPPFLAGS=-m32
-cval32_LDFLAGS=-m32 $(AM_STATIC)
+cval32_LDFLAGS=-m32 $(XX_STATIC)
 cval32_SOURCES = cval.cc
 
 cval64_CPPFLAGS=-m64
-cval64_LDFLAGS=-m64 $(AM_STATIC)
+cval64_LDFLAGS=-m64 $(XX_STATIC)
 cval64_SOURCES = cval.cc
