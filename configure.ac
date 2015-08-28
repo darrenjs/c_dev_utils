@@ -80,7 +80,8 @@ CFLAGS="$my_save_cflags"
 AC_CONFIG_FILES([Makefile
                  cval/Makefile
                  cdatetime/Makefile
-                 cerror/Makefile])
+                 cerror/Makefile
+                 chex/Makefile])
 
 # Trigger the generation of our makefiles
 AC_OUTPUT
