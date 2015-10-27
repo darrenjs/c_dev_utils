@@ -48,13 +48,4 @@
 #define GIT_COLOR_BG_MAGENTA	"\033[45m"
 #define GIT_COLOR_BG_CYAN	"\033[46m"
 
-
-/*
- * Generally the color code will lazily figure this out itself, but
- * this provides a mechanism for callers to override autodetection.
- */
-extern int color_stdout_is_tty;
-
-
-
 #endif
