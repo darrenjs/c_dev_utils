@@ -1,17 +1,36 @@
+/*
+    Copyright 2015, Darren Smith
+
+    This file is part of c_dev_utils.
+
+    c_dev_utils is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    c_dev_utils is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with c_dev_utils.  If not, see <http://www.gnu.org/licenses/>.
+*/
 
 #include "color.h"
 
+#include <assert.h>
+#include <ctype.h>
+#include <getopt.h>
+#include <stdbool.h>  /* bool */
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
-#include <stdio.h>
-#include <stdbool.h>  /* bool */
-#include <getopt.h>
-#include <assert.h>
 
 #define CHEX_VERSION "1.0"
 
 #define STATIC_ASSERT(COND,MSG) typedef char static_assertion_##MSG[(!!(COND))*2-1]
+
 // token pasting madness:
 #define COMPILE_TIME_ASSERT3(X,L) STATIC_ASSERT(X,static_assertion_at_line_##L)
 #define COMPILE_TIME_ASSERT2(X,L) COMPILE_TIME_ASSERT3(X,L)
@@ -20,152 +39,17 @@
 
 /*
 
-TODO: decide on endian:
-
-
-so, take principle that padding drives endian selection; i.e., the padding bytes
-are the MSB and non padding are LSB.
-
-so we now have bytes, and side which is little endian
-
-
---
-
-
-
-
-next dilemma, think about th eendian
-
-1/ uiser input:   C1 00
-
-2/  user says "pad left"  ==>  00 00 C1 00
-
-3/ or, pad right @   C1 00 00 00
-
-4/ so, for rightpad, and leftpad, how do we do the copy to the actual int?
-
-5/ One option, is to take the left/right-ness, as a guide to which LSB, and if
-we know the platform is little endian, then we can do the match
-
-3/ now program does the split, starting wiht the non-pad end:  | 00
-
-TODO: add option to provide endian to program, ie, assume-little, assume-big
-
 TODO: improve the printable chars output
-
-TODO: support computer endian, but where? I think I still need to put it in the  to byte conversion.
 
 NEXT: allow user to hexdump the input bytes
 
 NEXT: test options, and see if looks okay
 
-
 NEXT: in the help, explain what LSB means
 
 NEXT:  no diff in rsb lsb for : -t int AA BB CC DD
 
-TODO: improve the help output
-
-
-
-* need to rememebr that we are taking long bytes sequences from the user
-
-     02 03 04 05 | 06 07 08 09 | AA BB CC DD | EE FF
-
-    02 03 04 05 | 06 07 08 09 | AA BB CC DD | EE FF  00 00
-
-or
-
-     00 00 02 03 | 04 05 06 07 | 08 09 AA BB | CC DD EE FF
-
-NOTE: padding is not needed if we have correct number of multiple bytes
-
-
-Here is the problem.  Take this string:
-
-       0F 0A 01
-
-... now what is this equivalent to?
-
-      3     2     1   0
-     00    0F    0A   01
-     00    01    0A   0F
-     00    10    A0   F0
-
-so, as well as determine which side of the string contains the LSB, it also
-controls which side of the string should be padded (the side with the MSB).
-Ie., padding is required here because we are converting to int size 4, but nly
-have 3 bytes.
-
-So, we need to ask the user: is string rightside-lsb (default), or, leftside-lsb?
-
-
-the new pad algo:
-
-
-   ba:   00 00 00 | 0F 0A 01 | 00 00 00
-         ^^^^^^^^
-         margin
-
-so, easiest is to adaopt a little endian layout in memory.
-
-
-
-
-NEXT: improve
-
-the LSB and RSB options specify how to interpret the user hex string by
-identifying which end of the string represents the least significant byte.  For
-example, fiven the user string "FF AA", this is would be intpreted as follows:
-
-    chex            "FF AA"
-
-    right lsb        00 00 FF AA  =  65450
-    left lsb         FF AA 00 00  = 4289331200   <-- wrong, should be    00 00 AA FF
-
-
-
-
-    --rightpad      255  1    = 65450
-    --leftpad       255  1    = 65450
-
-                1       256    65536     --left
-
-  in dislpay, we use positional format of putting the least sig bits on the right, and most sig bits on the left.
-
-  - user says if input of big endian, or little endian, and that has definite
-    meaning ... implies location of msb and lsb
-
-  - put this in the help
-
-  - padding is always on the msb side
-
-
-
-NEXT: remove references to git
-
-NEXT: add option to disable colour
-
-NEXT: try to clean up the code
-
-
-
-
-* need to think about the best way to present the padding and endian-ness
-
-
- * understand the endian issue
-
-* support strings
-
-* extract a string library?
-
-
-* try to export the color lib
-
 */
-
-
 
 /* Color and theme */
 enum chex_theme
@@ -174,7 +58,8 @@ enum chex_theme
   THEME_HEX,
   THEME_PADOCTECT,
   THEME_PADBYTE,
-  THEME_NONPRINT
+  THEME_NONPRINT,
+  THEME_HEADING
 };
 
 // map from theme enum to actual color to use
@@ -184,6 +69,7 @@ static char theme_colors[][COLOR_MAXLEN] = {
 	GIT_COLOR_RED,		/* THEME_PADOCTECT */
 	GIT_COLOR_RED,		/* THEME_PADBYTE */
 	GIT_COLOR_RED,		/* THEME_NONPRINT */
+	GIT_COLOR_BOLD,		/* THEME_HEADING */
     "" // LAST
 };
 
@@ -252,16 +138,21 @@ COMPILE_TIME_ASSERT( (CTYPE_MAX+1) == (sizeof(ctypes)/sizeof(struct ctype)));
 
 struct program_options
 {
-  enum { PAD_RIGHT=0, PAD_LEFT} padside;
+  enum { PAD_LEFT=0, PAD_RIGHT} padside;
   bool showchars;
   bool alltypes;
 
   // Specifiies if byte is written as LSB/MSB convention (eg B1=28) . Default is
-  // the MSB/LSB conventional (so C1=193)
+  // the MSB/LSB conventional (eg C1=193)
   bool byte_lsbmsb;
-} popts;
 
+  // Reverse the final memcpy
+  bool reverse;
+};
 
+static struct program_options popts;
+
+//----------------------------------------------------------------------
 
 struct byte_array
 {
@@ -290,7 +181,6 @@ struct byte_array reserve(size_t len, size_t padlen)
   return ba;
 }
 
-
 void dump(struct byte_array ba)
 {
   for (size_t i = 0; i < ba.datalen; i++) printf("%u\n", *(ba.data+i));
@@ -302,6 +192,7 @@ bool ptr_in_user_region(const struct byte_array* ba, const unsigned char * p)
   return (p >= ba->data) && (p < ba->data + ba->datalen);
 }
 
+//----------------------------------------------------------------------
 
 char tohex(unsigned int i)
 {
@@ -309,36 +200,30 @@ char tohex(unsigned int i)
   return alphabet[ i & 0xF];
 }
 
-
-
-
-/* endian_copy2 */
-
-/* - src */
-/* - bool archIsLittle */
-/* - if leftpad, userbyteIsLittle=false */
-/* - if rightpad,  userbyteIsLitter=true */
-/* - mempy */
-/* - if endian differnet, reverse */
+//----------------------------------------------------------------------
 
 bool is_little_endian()
 {
    long int i = 1;
    const char *p = (const char *) &i;
 
-   return (p[0] == 1)  // Lowest address contains the least significant byte
+   return (p[0] == 1);  // Lowest address contains the least significant byte
 }
 
-void endian_copy2(void* dest,
+//----------------------------------------------------------------------
+
+void endian_copy(void* dest,
                  unsigned char* src,
                  size_t n)
 {
-  bool arch_little_endian = is_little_endian();
-  bool user_litte_endian = ( pots.padside==PAD_RIGHT );
+  int arch_little_endian = is_little_endian();
+  bool user_litte_endian  = ( popts.padside==PAD_RIGHT);
 
   memcpy(dest,src,n);
 
-  if (arch_little_endian != user_litte_endian)
+  // if we need to, corrent for endian, or if user requested perform reverse;
+  // but ignore need to correct for endian AND perform reverse
+  if ( ((arch_little_endian != user_litte_endian)?1:0) ^ (popts.reverse?1:0) )
   {
     unsigned char* beg = dest;
     unsigned char* end = dest + n - 1;
@@ -353,33 +238,7 @@ void endian_copy2(void* dest,
   }
 }
 
-/* Copy bytes from src into dest.  Number of bytes to copy is passed in
- * 'width'.
- */
-void endian_copy(void* dest,
-                 unsigned char* src,
-                 size_t n)
-{
-  unsigned char* tmpbuf = (unsigned char*) malloc(n);
-  memcpy(tmpbuf, src, n);
-
-  unsigned char* beg = tmpbuf;
-  unsigned char* end = tmpbuf + n - 1;
-  while(beg<end)
-  {
-    unsigned char temp = *beg;
-    *beg = *end;
-    *end = temp;
-    beg++;
-    end--;
-  }
-
-  // TODO: if endian match
-  memcpy(dest, tmpbuf, n);
-
-  free(tmpbuf);
-}
-
+//----------------------------------------------------------------------
 
 /* Note the byte padding implemented in here.  If the hex string has
  * right-most-LSB, then padding will go to the left, to fill up higher
@@ -389,12 +248,12 @@ void endian_copy(void* dest,
 #define as_TYPE2( T, CTYPE_ENUM )                                       \
   if (ctypes[CTYPE_ENUM].use || popts.alltypes)                         \
   {                                                                     \
-    printf("%s (%lu bytes)\n", #T, sizeof( T ));                        \
+    printf("%s%s (size %lu)%s\n", use_color(1, THEME_HEADING), #T, sizeof( T ), use_color(1, THEME_RESET)); \
     T value = 0;                                                        \
     const size_t width = sizeof( T );                                   \
     int pad = (width - ba.datalen % width) % width;                     \
     unsigned char* src = ba.data /* rightpad */;                        \
-    if (popts.padside==PAD_RIGHT)                                       \
+    if (popts.padside==PAD_LEFT)                                        \
     {                                                                   \
       src = ba.data - pad;                                              \
     }                                                                   \
@@ -417,6 +276,7 @@ void endian_copy(void* dest,
     }                                                                   \
   }
 
+//----------------------------------------------------------------------
 
 void convert_to_types(struct byte_array ba)
 {
@@ -443,7 +303,7 @@ void convert_to_types(struct byte_array ba)
 
   if (popts.showchars)
   {
-    printf("printable chars\n");
+    printf("%sprintable chars%s\n", use_color(1, THEME_HEADING), use_color(1, THEME_RESET));
     const char* col_nonprint=use_color(1, THEME_NONPRINT);
     const char* col_reset=use_color(1, THEME_RESET);
 
@@ -459,7 +319,7 @@ void convert_to_types(struct byte_array ba)
   }
 }
 
-
+//----------------------------------------------------------------------
 
 /* convert the user hex-string into an array of bytes */
 void process_user_hex_string(const char* s)
@@ -501,7 +361,7 @@ void process_user_hex_string(const char* s)
   // if we are to pad on the left hand side (ie requires a memory move).
   if (nibbles & 0x01)
   {
-    if (popts.padside==PAD_RIGHT)
+    if (popts.padside==PAD_LEFT)
     {
       memmove(nibblesbuf+1, nibblesbuf, nibbles);
       *nibblesbuf = 0;  // padding on left
@@ -562,55 +422,100 @@ void process_user_hex_string(const char* s)
   convert_to_types( ba ) ;
 }
 
-
+//----------------------------------------------------------------------
 void usage()
 {
   printf("chex - convert hex strings into values of C/C++ primitive types\n");
   printf("\nUsage: chex OPTIONS HEX [HEX ...]\n\n");
-  printf("  -l, --leftpad  \tassume input has LSB on left side\n");
-  printf("  -r, --rightpad \tassume input has LSB on right side (default)\n");
-  printf("  -t, --types    \tcomma separated list of types, or 'all'\n");
-  printf("  --lsbmsb       \tread hex chars as LSB-MSB pairs, instead of MSB-LSB convention\n");
+  printf("  -l, --leftpad  \tadd padding to left side of input bytes, implies LSB on right (default)\n");
+  printf("  -r, --rightpad \tadd padding to right side of input bytes, implies LSB on left\n");
+  printf("  -t, --types    \tcomma separated list of C types (see below), or 'all'\n");
+  printf("  --reverse      \treverse final memcpy from byte array to primitive type\n");
+  printf("  --lsbmsb       \tinterpret hex chars as LSB-MSB pairs, instead of MSB-LSB convention\n");
   printf("  -v             \tshow version\n");
-  printf("\nValues supported for the types option:\n");
+  printf("\nTypes supported:\n\n");
   struct ctype * s = ctypes;
   while (s->name)
   {
     printf("  %s\n", s->name);
     s++;
   }
-  printf("NOTES\n");
-  printf("NOTES\n");
 
-  /*
-    TODO: here explain about the MSB/LSB dilemma
+  const char* longhelp =
+    "Converting the user hex string to values of C/C++ types (such as int, double\n"
+    "etc) is a three step process.\n"
+    "\n"
+    "1. Hex pairs to bytes\n"
+    "\n"
+    "The hex string is first converted into a sequence of octects (bytes). This\n"
+    "conversion, which operates on pairs of hex digits, depends on which digit\n"
+    "contains the most significant bit (MSB).  For example the hex number A2 can be\n"
+    "interpreted in two ways, depending on the order MSB-LSB or LSB-MSB :\n"
+    "\n"
+    "    MSB-LSB order :  10*16 + 2     =  162\n"
+    "    LSB-MSB order :  10    + 2*16  =  42\n"
+    "\n"
+    "chex uses MSB-LSB order by default; the program option --lsbmsb allows for\n"
+    "reverse ordering.\n"
+    "\n"
+    "2. Padding\n"
+    "\n"
+    "Padding is the introduction of zero bytes in higher-significant positions to\n"
+    "fill in gaps when not enough input hex digits have been provided to convert into\n"
+    "a C primitive type.\n"
+    "\n"
+    "For example, converting the hex string '1A2' into a 4 byte unsigned int can be\n"
+    "performed in two different ways, depending on whether padding is placed to the\n"
+    "left or to the right of the full hex string.  In both cases, the padding is\n"
+    "always assumed to be the higher order bytes.\n"
+    "\n"
+    "* using left padding (-l option, the default)\n"
+    "\n"
+    "     user string :   1A2\n"
+    "\n"
+    "     padded      :   000001A2\n"
+    "\n"
+    "     hex to bytes:   00  00  01  A2\n"
+    "                      0   0   1 162\n"
+    "                    MSB\n"
+    "\n"
+    "     uint value  :   418\n"
+    "\n"
+    "* using right padding (-r option)\n"
+    "\n"
+    "     user string :   1A2\n"
+    "\n"
+    "     padded      :   1A200000\n"
+    "\n"
+    "     hex to bytes:   1A  20  00  00\n"
+    "                     26  32   0   0\n"
+    "                                 MSB\n"
+    "\n"
+    "     uint value  :   32*256 + 26  = 8218\n"
+    "\n"
+    "3. Endian\n"
+    "\n"
+    "The final step is the copy of bytes into a C primitive type.  The left or right\n"
+    "padding setting determines which user byte is the LSB and which is the MSB; this\n"
+    "information allows the bytes to be copied in an order which reflects the\n"
+    "endianess of the host system. I.e., the LSB user byte will occupy the LSB\n"
+    "location in the C/C++ type.\n" ;
 
-ie,   [LSB][MSB]  or [MSB][LSB]
-
-    TODO: also explain about the padding
-
-    ie, padding etc.   [bbbb bbbb b000 0000000] or [0000000 000bb bbbb bbbb]
-
-    ie, next we need to divide into 4's (int).
-
-                M  L M  L M  L
-       [0000000 00bb bbbb bbbb] --> 'bbbb' to int(iiii)
-
-   ok, should have enough info at this point. And internally, this large array
-   will be stored in user side at lower end of range, and padding bytes at upper end of range.
-
- */
+  printf("\nNotes:\n\n");
+  printf(longhelp);
 
   exit(0);
 }
 
 
+//----------------------------------------------------------------------
 void version()
 {
   printf("chex %s\n", CHEX_VERSION);
   exit(0);
 }
 
+//----------------------------------------------------------------------
 /* Option processing */
 
 bool isopt(const char* opt1, const char* opt2, const char* user)
@@ -636,7 +541,6 @@ int isoptarg(const char* opt1, const char* opt2, int argc, char** argv, int *i)
   return 0;
 }
 
-
 int opt_unknown(int argc, char** argv, int *i)
 {
   if (*i < argc && argv[*i][0] == '-')
@@ -647,24 +551,11 @@ int opt_unknown(int argc, char** argv, int *i)
   return 0;
 }
 
-/*
-            HI       LO
-    65280 | 00 00 FF 00
-
-    LO: this byte controls low range, eg +1
-    HI: this byte conrols high reange, eg millions
-
-
-    take int var, V:      [0][1][2][3]
-
-    is four bytes.  Which of these has the LO, and which the HI?
- */
+//----------------------------------------------------------------------
 
 int main(int argc, char** argv)
 {
   char * usertypes = 0;
-
-  memset(&popts,0,sizeof(struct program_options));
 
   popts.showchars = true;  // TODO: take from user
 
@@ -677,6 +568,7 @@ int main(int argc, char** argv)
     else if ( isopt("-l", "--leftpad",  argv[i]) ) popts.padside     = PAD_LEFT;
     else if ( isopt("-r", "--rightpad", argv[i]) ) popts.padside     = PAD_RIGHT;
     else if ( isopt(NULL, "--lsbmsb",   argv[i]) ) popts.byte_lsbmsb = true;
+    else if ( isopt(NULL, "--reverse",  argv[i]) ) popts.reverse     = true;
     else if ( isoptarg("-t", "--types", argc, argv, &i))
     {
       /* strdup is not alway available, so copy here*/
