@@ -37,20 +37,6 @@
 #define COMPILE_TIME_ASSERT(X)    COMPILE_TIME_ASSERT2(X,__LINE__)
 
 
-/*
-
-TODO: improve the printable chars output
-
-NEXT: allow user to hexdump the input bytes
-
-NEXT: test options, and see if looks okay
-
-NEXT: in the help, explain what LSB means
-
-NEXT:  no diff in rsb lsb for : -t int AA BB CC DD
-
-*/
-
 /* Color and theme */
 enum chex_theme
 {
@@ -58,18 +44,20 @@ enum chex_theme
   THEME_HEX,
   THEME_PADOCTECT,
   THEME_PADBYTE,
-  THEME_NONPRINT,
-  THEME_HEADING
+  THEME_PRINTCH,
+  THEME_HEADING,
+  THEME_DOT
 };
 
 // map from theme enum to actual color to use
 static char theme_colors[][COLOR_MAXLEN] = {
 	GIT_COLOR_RESET,
-	GIT_COLOR_NORMAL,	/* THEME_HEX */
-	GIT_COLOR_RED,		/* THEME_PADOCTECT */
-	GIT_COLOR_RED,		/* THEME_PADBYTE */
-	GIT_COLOR_RED,		/* THEME_NONPRINT */
-	GIT_COLOR_BOLD,		/* THEME_HEADING */
+	GIT_COLOR_RESET,    /* THEME_HEX */
+	GIT_COLOR_RED,	    /* THEME_PADOCTECT */
+	GIT_COLOR_RED,	    /* THEME_PADBYTE */
+	GIT_COLOR_GREEN,    /* THEME_NONPRINT */
+	GIT_COLOR_BOLD,     /* THEME_HEADING */
+	GIT_COLOR_RESET,    /* THEME_DOT */
     "" // LAST
 };
 
@@ -78,9 +66,11 @@ const char* use_color(bool wantcolor, int ix)
   if (wantcolor)
     return theme_colors[ix];
   else
-    return GIT_COLOR_RESET;
+    return "";
 }
 
+const char* cols_chr[2];
+const char* cols_dot[2];
 
 /* Enum of supported types. This enum has same order and positions as the ctypes
  * array */
@@ -116,9 +106,9 @@ struct ctype
  * postion as the CTYPE_xxx enums. */
 struct ctype ctypes[] =
 {
-  {"char",               "%hhi",    0, 1},  // assume signed, but is implementation defined
-  {"signed char",        "%hhi",    0, 1},
-  {"unsigned char",      "%hhu",    0, 1},
+  {"char",               "%hhi",  0, 1},  // assume signed, but is implementation defined
+  {"signed char",        "%hhi",    0, 0},
+  {"unsigned char",      "%hhu",    0, 0},
   {"short",              "%i",      0, 0},
   {"unsigned short",     "%hu",     0, 0},
   {"int",                "%i",      0, 0},
@@ -148,9 +138,11 @@ struct program_options
 
   // Reverse the final memcpy
   bool reverse;
+
+  bool color;
 };
 
-static struct program_options popts;
+static struct program_options popts;  // static ==> init to zerp
 
 //----------------------------------------------------------------------
 
@@ -240,6 +232,7 @@ void endian_copy(void* dest,
 
 //----------------------------------------------------------------------
 
+
 /* Note the byte padding implemented in here.  If the hex string has
  * right-most-LSB, then padding will go to the left, to fill up higher
  * significant bytes; in practice that means moving our buffer start pointer to
@@ -248,7 +241,7 @@ void endian_copy(void* dest,
 #define as_TYPE2( T, CTYPE_ENUM )                                       \
   if (ctypes[CTYPE_ENUM].use || popts.alltypes)                         \
   {                                                                     \
-    printf("%s%s (size %lu)%s\n", use_color(1, THEME_HEADING), #T, sizeof( T ), use_color(1, THEME_RESET)); \
+    printf("%s%s (size %lu)%s\n", use_color(popts.color, THEME_HEADING), #T, sizeof( T ), use_color(popts.color, THEME_RESET)); \
     T value = 0;                                                        \
     const size_t width = sizeof( T );                                   \
     int pad = (width - ba.datalen % width) % width;                     \
@@ -266,15 +259,26 @@ void endian_copy(void* dest,
       for (size_t i = 0; i < width; ++i)                                \
       {                                                                 \
         bool b = !ptr_in_user_region(&ba,src+i);                        \
-        printf(" %s%02X%s", use_color(1 && b, THEME_PADBYTE), *(src+i), use_color(1 && b, THEME_RESET)) ; \
+        printf(" %s%02X%s", use_color(popts.color && b, THEME_PADBYTE), *(src+i), use_color(popts.color && b, THEME_RESET)) ; \
       }                                                                 \
       printf(" | ");                                                    \
       printf(ctypes[CTYPE_ENUM].fmt , value);                           \
-      if (ctypes[CTYPE_ENUM].is_char  && isprint( value )) printf(" '%c'", (char)value); \
+      if (ctypes[CTYPE_ENUM].is_char && isprint( value ))               \
+      {                                                                 \
+        char tmp[10];                                                   \
+        snprintf(tmp,sizeof(tmp),ctypes[CTYPE_ENUM].fmt,value);         \
+        size_t spaces=5 - strlen(tmp);                                  \
+        while(spaces-- > 0) printf(" ");                                \
+        printf("'%s%c%s'",cols_chr[0], (char)value,cols_chr[1]);        \
+      }                                                                 \
       printf("\n");                                                     \
       src += width;                                                     \
     }                                                                   \
   }
+
+
+
+
 
 //----------------------------------------------------------------------
 
@@ -301,21 +305,52 @@ void convert_to_types(struct byte_array ba)
   as_TYPE2(long double, CTYPE_LONG_DOUBLE);
 
 
-  if (popts.showchars)
+  if (popts.showchars || popts.alltypes)
   {
-    printf("%sprintable chars%s\n", use_color(1, THEME_HEADING), use_color(1, THEME_RESET));
-    const char* col_nonprint=use_color(1, THEME_NONPRINT);
-    const char* col_reset=use_color(1, THEME_RESET);
+    printf("%sprintable chars%s\n", use_color(popts.color, THEME_HEADING),
+           use_color(popts.color, THEME_RESET));
 
-    unsigned char* src = ba.data;
-    for (size_t i = 0; i < ba.datalen; ++i, ++src)
+    int bytes = ba.datalen;
+    const int linewidth = 16; // bytes per line
+    const int blocks = bytes/linewidth + ( (bytes%linewidth)>0 );
+
+    for (int j = 0; j < blocks; j++)
     {
-      if (isprint( *src ))
-        printf("%c", *src);
-      else if (col_nonprint != col_reset)
-        printf("%s.%s", col_nonprint,col_reset);
-    }
-    printf("\n");
+      int offset = linewidth * j;
+      unsigned char* const src = ba.data + offset;
+
+      for (size_t i = 0; i < linewidth; ++i)
+      {
+        if (i+offset < bytes)
+        {
+          if (isprint( *(src+i)))
+            printf("%s%c%s", cols_chr[0],*(src+i),cols_chr[1]);
+          else
+            printf("%s.%s",cols_dot[0],cols_dot[1]);
+        }
+        else printf(" ");
+      }
+      printf(" |");
+
+      // print hex
+      for (size_t i = 0; i < linewidth ; ++i)
+      {
+        if ((offset+i) < bytes)
+        {
+          unsigned int b = *(ba.data+offset+i);
+
+          // Note: there are easier ways to get hex digits, but, this is okay for
+          // now, becuase I might display the hex in different colours.
+          char msb = tohex((b & 0xF0)>>4);
+          char lsb = tohex((b & 0x0F));
+
+          const char** cols = (isprint( *(src+i)))? cols_chr:cols_dot;
+          printf(" %s%c%c%s",cols[0],msb,lsb,cols[1]);
+        }
+      }
+
+      printf("\n"); // newline after one block
+  }
   }
 }
 
@@ -409,11 +444,32 @@ void process_user_hex_string(const char* s)
     }
     printf(" |");
 
-    for (size_t i = 0; i < linewidth && ((offset+i) < bytes); ++i)
+    //for (size_t i = 0; i < linewidth && ((offset+i) < bytes); ++i)
+    for (size_t i = 0; i < linewidth ; ++i)
     {
-      unsigned int b = *(ba.data+offset+i);
-      printf(" %3u",b);
+      if (offset+i < bytes)
+      {
+        unsigned int b = *(ba.data+offset+i);
+        printf(" %3u",b);
+      }
+      else printf("    ");
     }
+    printf(" | ");
+
+    unsigned char* const src = ba.data + offset;
+    for (size_t i = 0; i < linewidth; ++i)
+    {
+      if (i+offset < bytes)
+      {
+        if (isprint( *(src+i)))
+          printf("%c", *(src+i));
+        else
+          printf(".");
+      }
+      else printf(" ");
+    }
+
+
     printf("\n"); // newline after one block
   }
 
@@ -429,9 +485,12 @@ void usage()
   printf("\nUsage: chex OPTIONS HEX [HEX ...]\n\n");
   printf("  -l, --leftpad  \tadd padding to left side of input bytes, implies LSB on right (default)\n");
   printf("  -r, --rightpad \tadd padding to right side of input bytes, implies LSB on left\n");
-  printf("  -t, --types    \tcomma separated list of C types (see below), or 'all'\n");
+  printf("  -t, --types    \tcomma separated list of C types for conversion(see below)\n");
+  printf("  -a, --all      \tconvert to all types\n");
+  printf("  -p, --print    \tdisplay printable characters\n");
   printf("  --reverse      \treverse final memcpy from byte array to primitive type\n");
   printf("  --lsbmsb       \tinterpret hex chars as LSB-MSB pairs, instead of MSB-LSB convention\n");
+  printf("  --nocolor      \tdo not use color in the output\n");
   printf("  -v             \tshow version\n");
   printf("\nTypes supported:\n\n");
   struct ctype * s = ctypes;
@@ -555,11 +614,11 @@ int opt_unknown(int argc, char** argv, int *i)
 
 int main(int argc, char** argv)
 {
+
   char * usertypes = 0;
 
-  popts.showchars = true;  // TODO: take from user
-
   // parse options
+  popts.color = true;
   int i;
   for (i = 1; i < argc; i++)
   {
@@ -567,8 +626,11 @@ int main(int argc, char** argv)
     else if ( isopt("-v", "--version",  argv[i]) ) version();
     else if ( isopt("-l", "--leftpad",  argv[i]) ) popts.padside     = PAD_LEFT;
     else if ( isopt("-r", "--rightpad", argv[i]) ) popts.padside     = PAD_RIGHT;
+    else if ( isopt("-p", "--print",    argv[i]) ) popts.showchars   = true;
+    else if ( isopt("-a", "--all",      argv[i]) ) popts.alltypes    = 1;
     else if ( isopt(NULL, "--lsbmsb",   argv[i]) ) popts.byte_lsbmsb = true;
     else if ( isopt(NULL, "--reverse",  argv[i]) ) popts.reverse     = true;
+    else if ( isopt(NULL, "--nocolor",  argv[i]) ) popts.color       = false;
     else if ( isoptarg("-t", "--types", argc, argv, &i))
     {
       /* strdup is not alway available, so copy here*/
@@ -587,12 +649,7 @@ int main(int argc, char** argv)
   {
     int found = 0;
 
-    if (strcmp(fd,"all")==0)
-    {
-      popts.alltypes=1;
-      found = 1;
-    }
-    else for (int j = 0; ctypes[j].name && !found; j++)
+    for (int j = 0; ctypes[j].name && !found; j++)
     {
       if ((strcmp(fd,ctypes[j].name) == 0))
       {
@@ -621,6 +678,12 @@ int main(int argc, char** argv)
     h = (char*) realloc(h, needed);
     strcat(h, argv[i]);
   }
+
+  cols_chr[0]=use_color(popts.color,THEME_PRINTCH);
+  cols_chr[1]=use_color(popts.color,THEME_RESET);
+  cols_dot[0]=use_color(popts.color,THEME_DOT);
+  cols_dot[1]=use_color(popts.color,THEME_RESET);
+
 
   process_user_hex_string( h );
 
