@@ -32,9 +32,9 @@ void display_row(const char * label, time_t t)
   ctime_str[ sizeof(ctime_str)-1 ] = '\0';
 
   if (r)
-    printf("%-20s: % 20ld : %s", label, t, ctime_str);
+    printf("%-15s: % 15ld : %s", label, t, ctime_str);
   else
-    printf("%-20s: % 20ld : ctime_r failed errno %d\n", label, t, errno);
+    printf("%-15s: % 15ld : ctime_r failed errno %d\n", label, t, errno);
 
 }
 
@@ -79,4 +79,3 @@ int main(int argc, const char** argv)
 
   return 0;
 }
-
