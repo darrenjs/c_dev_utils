@@ -2,12 +2,12 @@ C Dev Utils
 ===========
 
 c_dev_utils is a collection of simple utility programs for displaying
-information regarding the C\C++ programming environment on GNU\Linux systems.
+information regarding the C/C++ programming environment on GNU\Linux systems.
 
 cval
 ----
 
-Display numerical limits associated with the C\C++ primitive types (as defined
+Display numerical limits associated with the C/C++ primitive types (as defined
 by C++), and the hex and binary representation for specified values.
 
     $ cval short 256 257 258
