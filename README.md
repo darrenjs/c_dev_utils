@@ -24,6 +24,18 @@ by C++), and the hex and binary representation for specified values.
                               inf | 7F 80 00 00 | 01111111 10000000 00000000 00000000
 
 
+chex
+----
+
+The opposite of cval; convert hex strings into the values of C/C++ types.
+
+    $ chex -t "unsigned int,char" 2A
+    char (size 1)
+    2A | 42   '*'
+    unsigned int (size 4)
+    00 00 00 2A | 42
+
+
 cerror
 ------
 
