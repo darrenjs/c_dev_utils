@@ -204,6 +204,17 @@ bool is_little_endian()
 
 //----------------------------------------------------------------------
 
+void str_trim(char**p)
+{
+  char *s = *p;
+  while (isspace(*s)) s++;
+  char* e = s + strlen(s) - 1;
+  while ((e >= s) && isspace(*e)) *e--='\0';
+  *p = s;
+}
+
+//----------------------------------------------------------------------
+
 void endian_copy(void* dest,
                  unsigned char* src,
                  size_t n)
@@ -419,59 +430,57 @@ void process_user_hex_string(const char* s)
 
   /* display the raw bytes */
 
-  const int linewidth = 8; // bytes per line
-  const int blocks = bytes/linewidth + ( (bytes%linewidth)>0 );
-  printf("nibbles %u, bytes %u\n", nibbles, bytes);
-  for (int j = 0; j < blocks; j++)
-  {
-    printf("%d:", j);
-    int offset = linewidth * j;
+  /* const int linewidth = 8; // bytes per line */
+  /* const int blocks = bytes/linewidth + ( (bytes%linewidth)>0 ); */
+  /* printf("nibbles %u, bytes %u\n", nibbles, bytes); */
+  /* for (int j = 0; j < blocks; j++) */
+  /* { */
+  /*   printf("%d:", j); */
+  /*   int offset = linewidth * j; */
 
-    // loop over each byte, convert to hex, print
-    for (size_t i = 0; i < linewidth ; ++i)
-    {
-      if ((offset+i) < bytes)
-      {
-        unsigned int b = *(ba.data+offset+i);
+  /*   // loop over each byte, convert to hex, print */
+  /*   for (size_t i = 0; i < linewidth ; ++i) */
+  /*   { */
+  /*     if ((offset+i) < bytes) */
+  /*     { */
+  /*       unsigned int b = *(ba.data+offset+i); */
 
-        // Note: there are easier ways to get hex digits, but, this is okay for
-        // now, becuase I might display the hex in different colours.
-        char msb = tohex((b & 0xF0)>>4);
-        char lsb = tohex((b & 0x0F));
-        printf(" %c%c",msb,lsb);
-      }
-      else printf("   ");
-    }
-    printf(" |");
+  /*       // Note: there are easier ways to get hex digits, but, this is okay for */
+  /*       // now, becuase I might display the hex in different colours. */
+  /*       char msb = tohex((b & 0xF0)>>4); */
+  /*       char lsb = tohex((b & 0x0F)); */
+  /*       printf(" %c%c",msb,lsb); */
+  /*     } */
+  /*     else printf("   "); */
+  /*   } */
+  /*   printf(" |"); */
 
-    //for (size_t i = 0; i < linewidth && ((offset+i) < bytes); ++i)
-    for (size_t i = 0; i < linewidth ; ++i)
-    {
-      if (offset+i < bytes)
-      {
-        unsigned int b = *(ba.data+offset+i);
-        printf(" %3u",b);
-      }
-      else printf("    ");
-    }
-    printf(" | ");
+  /*   //for (size_t i = 0; i < linewidth && ((offset+i) < bytes); ++i) */
+  /*   for (size_t i = 0; i < linewidth ; ++i) */
+  /*   { */
+  /*     if (offset+i < bytes) */
+  /*     { */
+  /*       unsigned int b = *(ba.data+offset+i); */
+  /*       printf(" %3u",b); */
+  /*     } */
+  /*     else printf("    "); */
+  /*   } */
+  /*   printf(" | "); */
 
-    unsigned char* const src = ba.data + offset;
-    for (size_t i = 0; i < linewidth; ++i)
-    {
-      if (i+offset < bytes)
-      {
-        if (isprint( *(src+i)))
-          printf("%c", *(src+i));
-        else
-          printf(".");
-      }
-      else printf(" ");
-    }
-
-
-    printf("\n"); // newline after one block
-  }
+  /*   unsigned char* const src = ba.data + offset; */
+  /*   for (size_t i = 0; i < linewidth; ++i) */
+  /*   { */
+  /*     if (i+offset < bytes) */
+  /*     { */
+  /*       if (isprint( *(src+i))) */
+  /*         printf("%c", *(src+i)); */
+  /*       else */
+  /*         printf("."); */
+  /*     } */
+  /*     else printf(" "); */
+  /*   } */
+  /*   printf("\n"); // newline after one block */
+  /* } */
 
   free(nibblesbuf);
 
@@ -649,6 +658,7 @@ int main(int argc, char** argv)
   {
     int found = 0;
 
+    str_trim(&fd);
     for (int j = 0; ctypes[j].name && !found; j++)
     {
       if ((strcmp(fd,ctypes[j].name) == 0))
@@ -663,7 +673,7 @@ int main(int argc, char** argv)
       printf("'%s' is not a supported type\n", fd);
       exit(1);
     }
-    fd = strtok(NULL, ",");
+    fd = strtok(NULL, ","); // next token please
   } // while
 
 
