@@ -29,11 +29,12 @@ chex
 
 The opposite of cval; convert hex strings into the values of C/C++ types.
 
-    $ chex -t "unsigned int,char" 2A
+    $ chex -t "unsigned int,char" 4A 2A
     char (size 1)
+    4A | 74   'J'
     2A | 42   '*'
     unsigned int (size 4)
-    00 00 00 2A | 42
+    00 00 4A 2A | 18986
 
 
 cerror
