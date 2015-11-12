@@ -492,15 +492,15 @@ void usage()
 {
   printf("chex - convert hex strings into values of C/C++ primitive types\n");
   printf("\nUsage: chex OPTIONS HEX [HEX ...]\n\n");
-  printf("  -l, --leftpad  \tadd padding to left side of input bytes, implies LSB on right (default)\n");
-  printf("  -r, --rightpad \tadd padding to right side of input bytes, implies LSB on left\n");
-  printf("  -t, --types    \tcomma separated list of C types for conversion(see below)\n");
-  printf("  -a, --all      \tconvert to all types\n");
-  printf("  -p, --print    \tdisplay printable characters\n");
-  printf("  --reverse      \treverse final memcpy from byte array to primitive type\n");
-  printf("  --lsbmsb       \tinterpret hex chars as LSB-MSB pairs, instead of MSB-LSB convention\n");
-  printf("  --nocolor      \tdo not use color in the output\n");
-  printf("  -v             \tshow version\n");
+  printf("  -l, --leftpad    pad to left side of input, implies LSB on right (default)\n");
+  printf("  -r, --rightpad   pad to right side of input, implies LSB on left\n");
+  printf("  -t, --types      comma separated list of C types\n");
+  printf("  -a, --all        convert to all types\n");
+  printf("  -p, --print      display printable characters\n");
+  printf("  --reverse        reverse endain during memcpy\n");
+  printf("  --lsbmsb         interpret hex chars as LSB-MSB pairs\n");
+  printf("  --nocolor        do not use color in the output\n");
+  printf("  -v               show version\n");
   printf("\nTypes supported:\n\n");
   struct ctype * s = ctypes;
   while (s->name)
@@ -509,65 +509,66 @@ void usage()
     s++;
   }
 
-  const char* longhelp =
-    "Converting the user hex string to values of C/C++ types (such as int, double\n"
-    "etc) is a three step process.\n"
-    "\n"
-    "1. Hex pairs to bytes\n"
-    "\n"
-    "The hex string is first converted into a sequence of octects (bytes). This\n"
-    "conversion, which operates on pairs of hex digits, depends on which digit\n"
-    "contains the most significant bit (MSB).  For example the hex number A2 can be\n"
-    "interpreted in two ways, depending on the order MSB-LSB or LSB-MSB :\n"
-    "\n"
-    "    MSB-LSB order :  10*16 + 2     =  162\n"
-    "    LSB-MSB order :  10    + 2*16  =  42\n"
-    "\n"
-    "chex uses MSB-LSB order by default; the program option --lsbmsb allows for\n"
-    "reverse ordering.\n"
-    "\n"
-    "2. Padding\n"
-    "\n"
-    "Padding is the introduction of zero bytes in higher-significant positions to\n"
-    "fill in gaps when not enough input hex digits have been provided to convert into\n"
-    "a C primitive type.\n"
-    "\n"
-    "For example, converting the hex string '1A2' into a 4 byte unsigned int can be\n"
-    "performed in two different ways, depending on whether padding is placed to the\n"
-    "left or to the right of the full hex string.  In both cases, the padding is\n"
-    "always assumed to be the higher order bytes.\n"
-    "\n"
-    "* using left padding (-l option, the default)\n"
-    "\n"
-    "     user string :   1A2\n"
-    "\n"
-    "     padded      :   000001A2\n"
-    "\n"
-    "     hex to bytes:   00  00  01  A2\n"
-    "                      0   0   1 162\n"
-    "                    MSB\n"
-    "\n"
-    "     uint value  :   418\n"
-    "\n"
-    "* using right padding (-r option)\n"
-    "\n"
-    "     user string :   1A2\n"
-    "\n"
-    "     padded      :   1A200000\n"
-    "\n"
-    "     hex to bytes:   1A  20  00  00\n"
-    "                     26  32   0   0\n"
-    "                                 MSB\n"
-    "\n"
-    "     uint value  :   32*256 + 26  = 8218\n"
-    "\n"
-    "3. Endian\n"
-    "\n"
-    "The final step is the copy of bytes into a C primitive type.  The left or right\n"
-    "padding setting determines which user byte is the LSB and which is the MSB; this\n"
-    "information allows the bytes to be copied in an order which reflects the\n"
-    "endianess of the host system. I.e., the LSB user byte will occupy the LSB\n"
-    "location in the C/C++ type.\n" ;
+  const char* longhelp ="\
+Converting the user hex string to values of C/C++ types (such as char, int,\n\
+double etc) is a three step process.\n\
+\n\
+1. Hex pairs to bytes\n\
+\n\
+The hex string is first converted into a sequence of octects (bytes). This\n\
+conversion, which operates on pairs of hex digits, depends on which digit\n\
+contains the most significant bit (MSB).  For example the hex number A2 can be\n\
+interpreted in two ways, depending on the order MSB-LSB or LSB-MSB :\n\
+\n\
+    MSB-LSB order :  10*16 + 2     =  162\n\
+    LSB-MSB order :  10    + 2*16  =  42\n\
+\n\
+chex uses MSB-LSB order by default; the program option --lsbmsb allows for\n\
+reverse ordering.\n\
+\n\
+2. Padding\n\
+\n\
+Padding is the introduction of zero bytes in higher-significant positions to\n\
+fill in gaps when not enough input hex digits have been provided to convert into\n\
+a C primitive type.\n\
+\n\
+For example, converting the hex string '1A2' into a 4 byte unsigned int can be\n\
+performed in two different ways, depending on whether padding is placed to the\n\
+left or to the right of the full hex string.  In both cases, the padding is\n\
+always assumed to be the higher order bytes.\n\
+\n\
+* using left padding (-l option, the default)\n\
+\n\
+     user string :   1A2\n\
+\n\
+     padded      :   000001A2\n\
+\n\
+     hex to bytes:   00  00  01  A2\n\
+                      0   0   1 162\n\
+                    MSB\n\
+\n\
+     uint value  :   418\n\
+\n\
+* using right padding (-r option)\n\
+\n\
+     user string :   1A2\n\
+\n\
+     padded      :   1A200000\n\
+\n\
+     hex to bytes:   1A  20  00  00\n\
+                     26  32   0   0\n\
+                                 MSB\n\
+\n\
+     uint value  :   32*256 + 26  = 8218\n\
+\n\
+3. Endian\n\
+\n\
+The final step is the copy of bytes into a C primitive type.  The left or right\n\
+padding setting determines which user byte is the LSB and which is the MSB;\n\
+this information allows the bytes to be copied in an order which reflects the\n\
+endianess of the host system. I.e., the LSB user byte will occupy the LSB\n\
+location in the C/C++ type.\n\
+";
 
   printf("\nNotes:\n\n");
   printf(longhelp);
